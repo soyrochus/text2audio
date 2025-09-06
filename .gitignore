@@ -1,0 +1,31 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+# configuration files
+
+.env
+bob-config.toml
+
+# OS specific files: MacOS
+.DS_Store
+
+# Data files
+db/
+data/
+
+# Documentation builds
+site/
+
+# Node js
+node_modules/
+    
+
+# Test environments
+test-embedding/
