@@ -81,6 +81,21 @@ See [examples/control-rhythm-text2audio.md](examples/control-rhythm-text2audio.m
 * `--no-translate`: Skip translation even if target language differs.
 * `--list-voices`: Print the built-in list of common voices and exit.
 * `--probe-voices`: Generate 1-second test clips for known voices to discover which are available.
+* `--play-audio`: After saving the file, play it locally (macOS/Linux only).
+
+## Progress & playback feedback
+
+The CLI shows a Rich-based progress indicator for the main stages:
+
+- Load/clean text
+- Optional translation
+- Audio synthesis (streaming)
+
+When you pass `--probe-voices`, a Rich progress bar tracks per-voice test generation.
+
+If you add `--play-audio`, the app plays the generated file and shows a small animated
+indicator while playback is active. Playback support is implemented for macOS and Linux only.
+Windows support may be implemented at a later date.
 
 ## Environment variables
 
@@ -148,11 +163,29 @@ uv add probe:voices -- python text2audio.py --probe-voices --audio-format mp3 --
 uv run probe:voices
 ```
 
+6. **Generate and play the output locally (macOS/Linux)**
+
+```bash
+uv add voice:play -- python text2audio.py \
+  --prompt-file examples/description-text2audio.md \
+  --audio-file examples/description-text2audio.mp3 \
+  --audio-format mp3 \
+  --language english \
+  --voice alloy \
+  --tts-model tts-1-hd \
+  --play-audio
+
+uv run voice:play
+```
+
 ## Troubleshooting
 
 * **Missing `OPENAI_API_KEY`** → set it in your environment or `.env`.
 * **Audio generation fails** → check API error (network, quota, or invalid model/voice).
 * **Voice rejected** → try another from `--list-voices` or `--probe-voices`.
+* **No sound when using `--play-audio`** → Ensure a local player is installed.
+  - macOS: uses the built-in `afplay` (no install needed). Fallbacks: `ffplay`, `mpv`, `vlc`.
+  - Linux: tries `ffplay` (FFmpeg), then `mpv`, `vlc`, `mplayer`, or format-specific tools like `mpg123` (MP3) or `aplay` (WAV). Install one of these if missing.
 
 ## Security & cost
 
