@@ -14,12 +14,11 @@ except ImportError:
     sys.exit(1)
 
 # ----------------------------
-# Catalogs / defaults
+# Simple catalogs / defaults
 # ----------------------------
 KNOWN_VOICES = [
-    # Common voice IDs exposed in OpenAI TTS
     "alloy", "verse", "coral", "onyx", "shimmer",
-    "fable", "echo", "nova", "sage", "ash", "ballad"
+    "fable", "echo", "nova", "sage", "ash", "ballad",
 ]
 
 KNOWN_TTS_MODELS = ["tts-1", "tts-1-hd", "gpt-4o-mini-tts"]
@@ -52,49 +51,7 @@ def load_text_strip_markdown(path: Path) -> str:
     return txt.strip()
 
 # ----------------------------
-# Minimal Prosody Markup (MPM)
-# ----------------------------
-def apply_mpm(text: str) -> str:
-    def pause_repl(match):
-        val = match.group("val").strip().lower()
-        if val in {"s", "short"}:
-            return ", "
-        if val in {"m", "med", "medium"}:
-            return " … "
-        if val in {"l", "long"}:
-            return ".\n"
-        m = re.match(r"(\d+)\s*ms", val)
-        if m:
-            ms = int(m.group(1))
-            if ms < 350:
-                return ", "
-            if ms < 800:
-                return " … "
-            return ".\n"
-        return " … "
-
-    text = re.sub(r"\[\[pause:(?P<val>[^\]]+)\]\]", pause_repl, text, flags=re.IGNORECASE)
-
-    def emph_repl(m):
-        inner = m.group(1).strip()
-        return f" — {inner} — "
-    text = re.sub(r"\[emph\](.*?)\[/emph\]", emph_repl, text, flags=re.IGNORECASE | re.DOTALL)
-
-    def spell_repl(m):
-        inner = re.sub(r"\s+", "", m.group(1))
-        return " ".join(list(inner))
-    text = re.sub(r"\[spell\](.*?)\[/spell\]", spell_repl, text, flags=re.IGNORECASE | re.DOTALL)
-
-    text = re.sub(r"[ \t]{3,}", "  ", text)
-    return text.strip()
-
-def induce_prosody(text: str) -> str:
-    text = re.sub(r"\n\s*\n", "\n.\n", text)  # paragraph → longer pause
-    text = re.sub(r"([^\.\!\?\:\;\,…])\n", r"\1.\n", text)  # ensure sentence-like ends
-    return text.strip()
-
-# ----------------------------
-# Language detection + translation
+# Very light language hint + translation
 # ----------------------------
 def detect_language_hint(text: str) -> str:
     spanish_markers = re.findall(r"[áéíóúñ¡¿]", text.lower())
@@ -113,6 +70,7 @@ def translate_if_needed(client, text: str, target_language: str, text_model: str
     )
     user_prompt = f"Target language: {target_language}\n\nText:\n{text}"
 
+    # Prefer Responses API; fall back to chat.completions if needed.
     try:
         resp = client.responses.create(
             model=text_model,
@@ -136,7 +94,7 @@ def translate_if_needed(client, text: str, target_language: str, text_model: str
 # ----------------------------
 def synthesize_tts(client, text: str, out_path: Path, audio_format: str, tts_model: str, voice: str):
     fmt = FORMAT_MAP[audio_format]
-    # NOTE: current SDK expects 'response_format', not 'format'
+    # Current SDK uses 'response_format' (not 'format')
     with client.audio.speech.with_streaming_response.create(
         model=tts_model,
         voice=voice,
@@ -146,7 +104,7 @@ def synthesize_tts(client, text: str, out_path: Path, audio_format: str, tts_mod
         response.stream_to_file(out_path)
 
 def probe_voices(client, voices, tts_model, audio_format):
-    """Try synthesizing a 1-second sample per voice into a temp dir; report success/failure."""
+    """Synthesize a short sample per voice to discover which are live for this account."""
     tmpdir = Path(tempfile.mkdtemp(prefix="tts_voices_"))
     print(f"Probing voices into: {tmpdir}")
     ok, bad = [], []
@@ -162,29 +120,27 @@ def probe_voices(client, voices, tts_model, audio_format):
     for v in ok:
         print(f"  - {v}")
     if bad:
-        print("\nFailed voices (error shown for diagnostics):")
+        print("\nFailed voices (diagnostic):")
         for v, err in bad:
             print(f"  - {v}: {err}")
-    print("\n(Keep in mind this writes short audio files you can audition.)")
     return ok, bad
 
 # ----------------------------
 # CLI
 # ----------------------------
 def main():
-    load_dotenv()  # load .env if present
+    load_dotenv()
 
     parser = argparse.ArgumentParser(
-        prog="prompter",
+        prog="text2audio",
         description="Generate a narrated voice track from text/Markdown using OpenAI TTS."
     )
-    parser.add_argument("--prompt-file", required=True, help="Text/Markdown file with the narration.")
-    parser.add_argument("--audio-file", required=True, help="Output audio file path (e.g., voice.mp3).")
+    parser.add_argument("--prompt-file", help="Text/Markdown file with the narration.")
+    parser.add_argument("--audio-file", help="Output audio file path (e.g., voice.mp3).")
     parser.add_argument("--audio-format", default="mp3", choices=list(FORMAT_MAP.keys()),
                         help="Audio format (mp3|wav|opus|aac).")
+    parser.add_argument("--language", help="Target spoken language (e.g., 'english', 'spanish').")
 
-    parser.add_argument("--language", required=True,
-                        help="Target spoken language (e.g., 'english', 'spanish').")
     parser.add_argument("--voice", default=os.getenv("OPENAI_TTS_VOICE", "alloy"),
                         help="TTS voice name (e.g., alloy, verse, ...).")
     parser.add_argument("--tts-model", default=os.getenv("OPENAI_TTS_MODEL", "tts-1-hd"),
@@ -194,20 +150,17 @@ def main():
 
     parser.add_argument("--no-translate", action="store_true",
                         help="Do not translate even if target language differs.")
-    parser.add_argument("--no-prosody", action="store_true",
-                        help="Disable automatic cadence shaping.")
-    parser.add_argument("--no-mpm", action="store_true",
-                        help="Disable Minimal Prosody Markup processing.")
 
     parser.add_argument("--list-voices", action="store_true",
                         help="Print a curated list of common voice names and exit.")
     parser.add_argument("--probe-voices", action="store_true",
-                        help="Synthesize a 1-second sample per known voice to discover which are active for your account.")
+                        help="Synthesize a 1-second sample per known voice to discover availability.")
 
     args = parser.parse_args()
 
+    # Handle meta commands immediately
     if args.list_voices:
-        print("Known voice names (pass any of these via --voice; availability may vary):")
+        print("Known voice names (availability may vary by account):")
         for v in KNOWN_VOICES:
             print(f" - {v}")
         sys.exit(0)
@@ -220,9 +173,13 @@ def main():
     client = OpenAI(api_key=api_key)
 
     if args.probe_voices:
-        # Probe then exit (no narration render)
         probe_voices(client, KNOWN_VOICES, args.tts_model, args.audio_format)
         sys.exit(0)
+
+    # For normal narration mode, require these
+    if not args.prompt_file or not args.audio_file or not args.language:
+        parser.error("--prompt-file, --audio-file, and --language are required unless using --list-voices or --probe-voices")
+
 
     prompt_path = Path(args.prompt_file)
     if not prompt_path.exists():
@@ -232,7 +189,7 @@ def main():
     out_path = Path(args.audio_file)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 1) Load & normalize text
+    # 1) Load text
     raw_text = load_text_strip_markdown(prompt_path)
 
     # 2) Translate if needed
@@ -241,13 +198,7 @@ def main():
     if not args.no_translate:
         text_for_tts = translate_if_needed(client, text_for_tts, target_lang, args.text_model)
 
-    # 3) Apply MPM + cadence (optional)
-    if not args.no_mpm:
-        text_for_tts = apply_mpm(text_for_tts)
-    if not args.no_prosody:
-        text_for_tts = induce_prosody(text_for_tts)
-
-    # 4) Synthesize
+    # 3) Synthesize
     synthesize_tts(
         client=client,
         text=text_for_tts,
