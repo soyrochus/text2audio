@@ -7,6 +7,15 @@ import tempfile
 import regex as re
 from dotenv import load_dotenv
 
+# Optional Rich progress UI
+HAS_RICH = True
+try:
+    from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn, BarColumn
+    from rich.console import Console
+except Exception:
+    HAS_RICH = False
+    Console = None
+
 try:
     from openai import OpenAI
 except ImportError:
@@ -109,13 +118,34 @@ def probe_voices(client, voices, tts_model, audio_format):
     print(f"Probing voices into: {tmpdir}")
     ok, bad = [], []
     sample_text = "Testing voice sample."
-    for v in voices:
-        out = tmpdir / f"{v}.{audio_format}"
-        try:
-            synthesize_tts(client, sample_text, out, audio_format, tts_model, v)
-            ok.append(v)
-        except Exception as e:
-            bad.append((v, str(e)))
+    if HAS_RICH:
+        console = Console()
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("{task.description}"),
+            BarColumn(),
+            TimeElapsedColumn(),
+            transient=True,
+            console=console,
+        ) as progress:
+            task = progress.add_task("Synthesizing voice samples...", total=len(voices))
+            for v in voices:
+                out = tmpdir / f"{v}.{audio_format}"
+                try:
+                    synthesize_tts(client, sample_text, out, audio_format, tts_model, v)
+                    ok.append(v)
+                except Exception as e:
+                    bad.append((v, str(e)))
+                finally:
+                    progress.advance(task, 1)
+    else:
+        for v in voices:
+            out = tmpdir / f"{v}.{audio_format}"
+            try:
+                synthesize_tts(client, sample_text, out, audio_format, tts_model, v)
+                ok.append(v)
+            except Exception as e:
+                bad.append((v, str(e)))
     print("\nAvailable voices (succeeded):")
     for v in ok:
         print(f"  - {v}")
@@ -189,24 +219,60 @@ def main():
     out_path = Path(args.audio_file)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 1) Load text
-    raw_text = load_text_strip_markdown(prompt_path)
+    # Progress-assisted workflow
+    if HAS_RICH:
+        console = Console()
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("{task.description}"),
+            TimeElapsedColumn(),
+            transient=True,
+            console=console,
+        ) as progress:
+            # 1) Load text
+            t_load = progress.add_task("Loading and cleaning text...", total=None)
+            raw_text = load_text_strip_markdown(prompt_path)
+            progress.stop_task(t_load)
 
-    # 2) Translate if needed
-    target_lang = norm_language(args.language)
-    text_for_tts = raw_text
-    if not args.no_translate:
-        text_for_tts = translate_if_needed(client, text_for_tts, target_lang, args.text_model)
+            # 2) Translate if needed
+            target_lang = norm_language(args.language)
+            text_for_tts = raw_text
+            if not args.no_translate:
+                t_tr = progress.add_task(f"Translating to {target_lang}...", total=None)
+                text_for_tts = translate_if_needed(client, text_for_tts, target_lang, args.text_model)
+                progress.stop_task(t_tr)
 
-    # 3) Synthesize
-    synthesize_tts(
-        client=client,
-        text=text_for_tts,
-        out_path=out_path,
-        audio_format=args.audio_format,
-        tts_model=args.tts_model,
-        voice=args.voice,
-    )
+            # 3) Synthesize
+            t_syn = progress.add_task("Synthesizing audio (streaming)...", total=None)
+            synthesize_tts(
+                client=client,
+                text=text_for_tts,
+                out_path=out_path,
+                audio_format=args.audio_format,
+                tts_model=args.tts_model,
+                voice=args.voice,
+            )
+            progress.stop_task(t_syn)
+    else:
+        # Fallback to plain mode without Rich
+        print("Loading and cleaning text...")
+        raw_text = load_text_strip_markdown(prompt_path)
+
+        target_lang = norm_language(args.language)
+        text_for_tts = raw_text
+        if not args.no_translate:
+            print(f"Translating to {target_lang}...")
+            text_for_tts = translate_if_needed(client, text_for_tts, target_lang, args.text_model)
+
+        print("Synthesizing audio (streaming)...")
+        synthesize_tts(
+            client=client,
+            text=text_for_tts,
+            out_path=out_path,
+            audio_format=args.audio_format,
+            tts_model=args.tts_model,
+            voice=args.voice,
+        )
 
     print(f"Saved narration to: {out_path}")
 
