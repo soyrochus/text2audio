@@ -133,17 +133,27 @@ Windows support may be implemented at a later date.
 
 ## Usage
 
-The package can be run as a module:
+The package can be run in multiple ways:
 
+**As a Python module (recommended):**
 ```bash
 python -m text2audio [options]
 ```
 
-Or imported and used programmatically:
+**Using the legacy script (backward compatibility):**
+```bash
+python text2audio.py [options]
+```
 
+**Programmatically:**
 ```python
 import text2audio
 text2audio.main()  # equivalent to CLI
+```
+
+**When installed with a script entry point:**
+```bash
+text2audio [options]  # if installed via pip install -e .
 ```
 
 ## Examples (using uv)
