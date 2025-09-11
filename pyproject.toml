@@ -1,7 +1,7 @@
 [project]
 name = "text2audio"
 version = "0.1.0"
-description = "Add your description here"
+description = "A modular CLI utility for converting text/Markdown to spoken audio using OpenAI TTS"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -9,4 +9,12 @@ dependencies = [
     "python-dotenv>=1.1.1",
     "regex>=2025.9.1",
     "rich>=14.1.0",
+]
+
+[project.scripts]
+text2audio = "text2audio.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
 ]

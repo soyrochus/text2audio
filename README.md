@@ -1,9 +1,9 @@
 # text2audio — Text/Markdown → Spoken Audio
 
-A small CLI utility that converts a text or Markdown file into a narrated audio file using OpenAI TTS.
+A modular CLI utility that converts a text or Markdown file into a narrated audio file using OpenAI TTS.
 The tool optionally translates text and streams the synthesized audio directly to disk to avoid large memory buffers.
 
-This README explains how the script works, all available parameters, environment variables, and provides copy-paste examples.
+This README explains how the package works, all available parameters, environment variables, and provides copy-paste examples.
 
 
 
@@ -35,6 +35,15 @@ It can be MP3, WAV, AAC, or Opus.
 That’s the idea: write once, speak anywhere, with text2audio.
 ```
 
+## Package Structure
+
+text2audio is now organized as a modular Python package:
+
+- `text2audio/model.py`: Model selection and audio generation functionality
+- `text2audio/ui.py`: User interface, progress bars, and audio playback
+- `text2audio/cli.py`: Command-line parsing and application initialization  
+- `text2audio/__main__.py`: Package entry point for `python -m text2audio`
+
 ## Installation (using uv)
 
 This project uses `uv` to manage the virtual environment and dependencies.
@@ -48,12 +57,12 @@ This project uses `uv` to manage the virtual environment and dependencies.
   uv sync
   ```
 
-## What the script does (high level)
+## What the package does (high level)
 
 1. Parse CLI arguments.
 2. Read and sanitize the input Markdown/text (removes code fences, links, images, formatting).
 3. Optionally translate the text to the requested target language using an OpenAI text model.
-4. Pass the text to the OpenAI TTS API, which streams audio directly to the output file.
+4. Pass the text to the OpenAI TTS API with optional voice instructions and speed control, which streams audio directly to the output file.
 
 ## Shaping Speech with Text
 
@@ -69,6 +78,20 @@ You can still guide rhythm and emphasis using normal punctuation:
 
 See [examples/control-rhythm-text2audio.md](examples/control-rhythm-text2audio.md) for a practical demo.
 
+## Voice Control Features
+
+### Speech Speed
+Use the `--speed` parameter to control the rate of speech:
+* Range: 0.25 to 4.0
+* Default: 1.0 (normal speed)
+* Examples: `--speed 0.5` (half speed), `--speed 1.5` (1.5x speed)
+
+### Voice Instructions  
+Use the `--instructions` parameter to provide additional guidance for voice generation:
+* Only works with `gpt-4o-mini-tts` model
+* Ignored for `tts-1` and `tts-1-hd` models
+* Examples: `--instructions "Speak in a calm, professional tone"` or `--instructions "Use a cheerful, energetic voice"`
+
 ## CLI parameters
 
 * `--prompt-file <path>` (required): Path to the input text or Markdown file.
@@ -78,6 +101,8 @@ See [examples/control-rhythm-text2audio.md](examples/control-rhythm-text2audio.m
 * `--voice <voice-name>` (default: `alloy` or `OPENAI_TTS_VOICE`): TTS voice name.
 * `--tts-model <model>` (default: `tts-1-hd` or `OPENAI_TTS_MODEL`): TTS model (`tts-1`, `tts-1-hd`, `gpt-4o-mini-tts`).
 * `--text-model <model>` (default: `gpt-5-mini` or `OPENAI_TEXT_MODEL`): Text model for translation.
+* `--speed <value>` (default: `1.0`): Speech speed from 0.25 to 4.0.
+* `--instructions <text>`: Additional voice instructions for speech generation (ignored for `tts-1`/`tts-1-hd` models).
 * `--no-translate`: Skip translation even if target language differs.
 * `--list-voices`: Print the built-in list of common voices and exit.
 * `--probe-voices`: Generate 1-second test clips for known voices to discover which are available.
@@ -106,12 +131,37 @@ Windows support may be implemented at a later date.
 
 
 
+## Usage
+
+The package can be run in multiple ways:
+
+**As a Python module (recommended):**
+```bash
+python -m text2audio [options]
+```
+
+**Using the legacy script (backward compatibility):**
+```bash
+python text2audio.py [options]
+```
+
+**Programmatically:**
+```python
+import text2audio
+text2audio.main()  # equivalent to CLI
+```
+
+**When installed with a script entry point:**
+```bash
+text2audio [options]  # if installed via pip install -e .
+```
+
 ## Examples (using uv)
 
 1. **English MP3 narration**
 
 ```bash
-uv add voice:en -- python text2audio.py \
+uv add voice:en -- python -m text2audio \
   --prompt-file examples/description-text2audio.md \
   --audio-file examples/description-text2audio.mp3 \
   --audio-format mp3 \
@@ -122,24 +172,40 @@ uv add voice:en -- python text2audio.py \
 uv run voice:en
 ```
 
-2. **Spanish WAV narration (auto-translation)**
+2. **Spanish WAV narration (auto-translation) with custom speed**
 
 ```bash
-uv add voice:es -- python text2audio.py \
+uv add voice:es -- python -m text2audio \
   --prompt-file examples/description-text2audio.md \
   --audio-file examples/description-text2audio-es.wav \
   --audio-format wav \
   --language spanish \
   --voice verse \
-  --tts-model gpt-4o-mini-tts
+  --tts-model gpt-4o-mini-tts \
+  --speed 0.9
 
 uv run voice:es
 ```
 
-3. **Disable translation (speak original text as-is)**
+3. **Narration with voice instructions (gpt-4o-mini-tts only)**
 
 ```bash
-uv add voice:raw -- python text2audio.py \
+uv add voice:custom -- python -m text2audio \
+  --prompt-file examples/description-text2audio.md \
+  --audio-file examples/description-custom.mp3 \
+  --audio-format mp3 \
+  --language english \
+  --voice alloy \
+  --tts-model gpt-4o-mini-tts \
+  --instructions "Speak in a calm, professional tone with clear pronunciation"
+
+uv run voice:custom
+```
+
+4. **Disable translation (speak original text as-is)**
+
+```bash
+uv add voice:raw -- python -m text2audio \
   --prompt-file examples/description-text2audio.md \
   --audio-file examples/voice_raw.mp3 \
   --audio-format mp3 \
@@ -149,24 +215,24 @@ uv add voice:raw -- python text2audio.py \
 uv run voice:raw
 ```
 
-4. **List known voices**
+5. **List known voices**
 
 ```bash
-uv add list:voices -- python text2audio.py --list-voices
+uv add list:voices -- python -m text2audio --list-voices
 uv run list:voices
 ```
 
-5. **Probe which voices work on your account**
+6. **Probe which voices work on your account**
 
 ```bash
-uv add probe:voices -- python text2audio.py --probe-voices --audio-format mp3 --tts-model tts-1-hd
+uv add probe:voices -- python -m text2audio --probe-voices --audio-format mp3 --tts-model tts-1-hd
 uv run probe:voices
 ```
 
-6. **Generate and play the output locally (macOS/Linux)**
+7. **Generate and play the output locally (macOS/Linux)**
 
 ```bash
-uv add voice:play -- python text2audio.py \
+uv add voice:play -- python -m text2audio \
   --prompt-file examples/description-text2audio.md \
   --audio-file examples/description-text2audio.mp3 \
   --audio-format mp3 \
