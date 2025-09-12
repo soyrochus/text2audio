@@ -161,21 +161,19 @@ text2audio [options]  # if installed via pip install -e .
 1. **English MP3 narration**
 
 ```bash
-uv add voice:en -- python -m text2audio \
+uv run python -m text2audio \
   --prompt-file examples/description-text2audio.md \
   --audio-file examples/description-text2audio.mp3 \
   --audio-format mp3 \
   --language english \
   --voice alloy \
   --tts-model tts-1-hd
-
-uv run voice:en
 ```
 
 2. **Spanish WAV narration (auto-translation) with custom speed**
 
 ```bash
-uv add voice:es -- python -m text2audio \
+uv run python -m text2audio \
   --prompt-file examples/description-text2audio.md \
   --audio-file examples/description-text2audio-es.wav \
   --audio-format wav \
@@ -183,14 +181,12 @@ uv add voice:es -- python -m text2audio \
   --voice verse \
   --tts-model gpt-4o-mini-tts \
   --speed 0.9
-
-uv run voice:es
 ```
 
 3. **Narration with voice instructions (gpt-4o-mini-tts only)**
 
 ```bash
-uv add voice:custom -- python -m text2audio \
+uv run python -m text2audio \
   --prompt-file examples/description-text2audio.md \
   --audio-file examples/description-custom.mp3 \
   --audio-format mp3 \
@@ -198,41 +194,35 @@ uv add voice:custom -- python -m text2audio \
   --voice alloy \
   --tts-model gpt-4o-mini-tts \
   --instructions "Speak in a calm, professional tone with clear pronunciation"
-
-uv run voice:custom
 ```
 
 4. **Disable translation (speak original text as-is)**
 
 ```bash
-uv add voice:raw -- python -m text2audio \
+uv run python -m text2audio \
   --prompt-file examples/description-text2audio.md \
   --audio-file examples/voice_raw.mp3 \
   --audio-format mp3 \
   --language english \
   --no-translate
-
-uv run voice:raw
 ```
 
 5. **List known voices**
 
 ```bash
-uv add list:voices -- python -m text2audio --list-voices
-uv run list:voices
+uv run python -m text2audio --list-voices
 ```
 
 6. **Probe which voices work on your account**
 
 ```bash
-uv add probe:voices -- python -m text2audio --probe-voices --audio-format mp3 --tts-model tts-1-hd
-uv run probe:voices
+uv run python -m text2audio --probe-voices --audio-format mp3 --tts-model tts-1-hd
 ```
 
 7. **Generate and play the output locally (macOS/Linux)**
 
 ```bash
-uv add voice:play -- python -m text2audio \
+uv run python -m text2audio \
   --prompt-file examples/description-text2audio.md \
   --audio-file examples/description-text2audio.mp3 \
   --audio-format mp3 \
@@ -240,8 +230,6 @@ uv add voice:play -- python -m text2audio \
   --voice alloy \
   --tts-model tts-1-hd \
   --play-audio
-
-uv run voice:play
 ```
 
 ## Troubleshooting
